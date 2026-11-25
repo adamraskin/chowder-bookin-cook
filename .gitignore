@@ -2,3 +2,7 @@ ruffle-log.txt
 .playwright-mcp/
 __pycache__/
 *.pyc
+.vscode/
+.idea/
+Thumbs.db
+.DS_Store
