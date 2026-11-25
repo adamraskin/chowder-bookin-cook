@@ -1,0 +1,4 @@
+ruffle-log.txt
+.playwright-mcp/
+__pycache__/
+*.pyc

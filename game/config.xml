@@ -1,0 +1,16 @@
+<system>
+	<version type="String">0.1.0</version>
+	<versionSo type="String">0.1.0</versionSo>
+	<swfPath type="String"/>
+	<txtPath type="String"/>
+	<xmlPath type="String"/>
+	<gateway type="String"/>
+	<netDebug type="Boolean">false</netDebug>
+	<language type="String"></language>
+	<languages type="Array"></languages>
+	<unicodeFonts type="Array"></unicodeFonts>
+	<fps type="Boolean">false</fps>
+	<serverGet type="Boolean">false</serverGet>
+	<cheat type="Boolean">false</cheat>
+	<quality type="String">HIGH</quality>
+</system>

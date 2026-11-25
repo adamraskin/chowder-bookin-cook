@@ -1,0 +1,71 @@
+<sounds>
+	<files>
+	  <player hifi="sound_Chowder.swf" lofi="">
+	    <fxs_player>
+			<!--thanksdudem-->
+			<_thanksdudem volume="100" />
+			<!--levelcleared-->
+			<!--<_levelcleared volume="100" />	-->
+			<!--jackpotwin-->
+			<_jackpotwin volume="100" />
+			<!--jackpotlose-->
+			<_jackpotlose volume="100" />	
+			<!--lost-->
+			<_lost volume="100" />	
+			<!--looselife-->
+			<_looselife volume="100" />					
+			<!--btnover-->
+			<_btnover volume="100" />
+			<!--btnclic-->
+			<_btnclic volume="100" />
+			<!--score-->
+			<_score volume="100" />
+			<!--score short-->
+			<_scoreshort volume="100" />
+			<!--aham-->
+			<_aham volume="100" />
+			<!--degoupillenf-->
+			<_degoupillenf volume="100" />
+			<!--frappeshnitzel-->
+			<_frappeshnitzel volume="100" />
+			<!--trash-->
+			<_trash volume="100" />
+			<!--trasheat-->
+			<_trasheat volume="100" />
+			<!--putinmachine-->
+			<_putinmachine volume="100" />
+			<!--machinedeco-->
+			<_machinedeco volume="100" />
+			<!--machinesauce-->
+			<_machinesauce volume="100" />
+			<!--sortmachine-->
+			<_sortmachine volume="100" />
+			<!--popmuffin-->
+			<_popmuffin volume="100" />
+			<!--launchlevel-->
+			<_launchlevel volume="100" />
+			<!--jackpotclicnf-->
+			<_jackpotclicnf volume="100" />
+			<!--jackpotarrive-->
+			<_jackpotarrive volume="100" />
+			<!--jackpotrepart-->
+			<_jackpotrepart volume="100" />		
+			<!--win-->
+			<_win volume="100" />	
+			<!--scorereached-->
+			<_scorereached volume="100" />				
+			<!--closing-->
+			<_closing volume="100" />		
+			<!--jackpotinterlude-->
+			<_jackpotinterlude volume="100" />	
+		</fxs_player>
+	  </player>
+	</files>
+	<groups>
+		<general volume="100">
+			<player volume="100">
+				<fxs_player volume="100" />
+			</player>
+		</general>
+	</groups>
+</sounds>

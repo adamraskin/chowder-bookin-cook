@@ -1,0 +1,32 @@
+name: CI
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Build and check game files
+        run: python tools/check.py
+      - name: Check launcher script syntax
+        shell: pwsh
+        run: |
+          $errors = $null
+          [System.Management.Automation.Language.Parser]::ParseFile("$PWD/serve.ps1", [ref]$null, [ref]$errors) | Out-Null
+          if ($errors) { $errors | ForEach-Object { Write-Error $_.Message }; exit 1 }
+      - name: Check page script syntax
+        run: |
+          python - <<'PY'
+          import re
+          html = open('index.html', encoding='utf8').read()
+          scripts = [s for s in re.findall(r'<script>(.*?)</script>', html, re.S)]
+          open('/tmp/page.js', 'w').write('\n;\n'.join(scripts))
+          PY
+          node --check /tmp/page.js

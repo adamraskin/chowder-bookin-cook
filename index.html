@@ -1,0 +1,240 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Chowder: Bookin' Cook</title>
+<style>
+  html, body { margin: 0; height: 100%; background: #111; overflow: hidden; }
+  #stage { width: 100vw; height: 100vh; display: flex; align-items: center; justify-content: center; }
+  ruffle-player { width: min(100vw, calc(100vh * 3 / 2)); height: min(100vh, calc(100vw * 2 / 3)); display: block; }
+</style>
+</head>
+<body>
+<div id="stage"></div>
+<script>
+  // Debug mode (open the page with ?debug): send console output to the local
+  // server. serve.ps1 writes it to ruffle-log.txt.
+  const DEBUG = new URLSearchParams(location.search).has('debug');
+  if (DEBUG) {
+    for (const lvl of ['log', 'info', 'warn', 'error', 'debug']) {
+      const orig = console[lvl].bind(console);
+      console[lvl] = function (...a) {
+        orig(...a);
+        try {
+          const t = a.map(x => typeof x === 'string' ? x.replace(/%c/g, '') : (x && x.stack) || JSON.stringify(x)).join(' ');
+          if (!/^(color|background):/.test(t)) navigator.sendBeacon('/log', '[' + lvl + '] ' + t);
+        } catch (e) {}
+      };
+    }
+    window.addEventListener('error', e => navigator.sendBeacon('/log', '[pageerror] ' + e.message));
+  }
+</script>
+<script>
+  // Music engine.
+  // The original game plays music with an AS2 helper (MgrMusicAS2.swf) over
+  // LocalConnection. Ruffle cannot run that bridge, so the patched main.swf
+  // (see tools/build.py) sends each music command here through
+  // ExternalInterface: chowderMusic(method, soundId, ...args).
+  // This code does the same work as the AS2 helper (yamz.tools.SoundAS2Bridge
+  // and yamz.tools.YamzSoundForAS3) with Web Audio.
+  (function () {
+    const ctx = new (window.AudioContext || window.webkitAudioContext)();
+    const master = ctx.createGain();
+    master.connect(ctx.destination);
+    const sounds = {};            // soundId -> track
+    const buffers = {};           // soundId -> Promise<AudioBuffer>
+    const FPS = 30;               // the AS2 fades step once per frame at 30 fps
+    let player = null;
+
+    // Browsers start audio only after a user gesture.
+    const resume = () => { if (ctx.state !== 'running') ctx.resume(); };
+    for (const ev of ['pointerdown', 'keydown', 'touchstart']) window.addEventListener(ev, resume, true);
+
+    function load(id) {
+      if (!buffers[id]) {
+        buffers[id] = fetch('game/music/' + id + '.mp3')
+          .then(r => r.arrayBuffer())
+          .then(b => ctx.decodeAudioData(b))
+          .catch(e => { console.warn('music: cannot load ' + id, e); return null; });
+      }
+      return buffers[id];
+    }
+
+    // Call SoundAS3Bridge.<name>(...args) in the game.
+    function toGame(name, args) {
+      setTimeout(() => {
+        try { player && player.chowderMusicReceive(name, args); } catch (e) { console.warn('music: callback failed', e); }
+      }, 0);
+    }
+
+    class Track {
+      constructor(id, num) {
+        this.id = id; this.num = num;
+        this.gain = ctx.createGain(); this.gain.connect(master);
+        this.volume = 100; this.initVolume = 100;
+        this.source = null; this.playing = false; this.pausePos = 0;
+        this.timers = []; this.fadeTimer = null; this.token = 0;
+        load(id);
+      }
+      setVolume(v) {
+        this.volume = Math.max(0, Math.min(100, Number(v) || 0));
+        this.gain.gain.setValueAtTime(this.volume / 100, ctx.currentTime);
+      }
+      clearTimers() { this.timers.forEach(clearTimeout); this.timers = []; }
+      // Flash Sound.start(secondOffset, loops)
+      start(offset, loops) {
+        this.stopSource();
+        this.clearTimers();
+        offset = Number(offset) || 0;
+        loops = Math.max(1, Number(loops) || 1);
+        this.playing = true;
+        const token = ++this.token;
+        load(this.id).then(buf => {
+          if (!buf || token !== this.token) return;
+          if (offset >= buf.duration) offset = 0;
+          const src = ctx.createBufferSource();
+          src.buffer = buf;
+          src.connect(this.gain);
+          src.loop = loops > 1;
+          src.start(0, offset);
+          this.source = src;
+          this.startedAt = ctx.currentTime - offset;
+          this.duration = buf.duration;
+          if (loops > 1 && loops < 9999) {
+            // Stop after the requested number of plays.
+            this.timers.push(setTimeout(() => { if (token === this.token) this.stop(); },
+              ((buf.duration * loops) - offset) * 1000));
+          }
+          src.onended = () => { if (token === this.token && this.source === src) { this.playing = false; this.source = null; } };
+        });
+        toGame('starting', [this.num]);
+      }
+      stopSource() {
+        if (this.source) {
+          const s = this.source; this.source = null;
+          s.onended = null;
+          try { s.stop(); } catch (e) {}
+        }
+      }
+      stop() {
+        this.token++;
+        this.playing = false;
+        this.clearTimers();
+        if (this.fadeTimer) { clearInterval(this.fadeTimer); this.fadeTimer = null; }
+        this.stopSource();
+      }
+      // Position in seconds inside the current loop.
+      position() {
+        if (!this.source || !this.duration) return 0;
+        return (ctx.currentTime - this.startedAt) % this.duration;
+      }
+      // At the end of this sound (or at the next cue point, in ms), stop it and
+      // start `next` with endless loops.
+      mix(next, cuePoint) {
+        this.clearTimers();
+        if (!next) return;
+        const run = () => { this.stop(); next.start(0, 9999); };
+        if (!this.playing) { run(); return; }
+        const token = this.token;
+        load(this.id).then(buf => {
+          if (token !== this.token) return;
+          const pos = this.position();
+          const dur = buf ? buf.duration : 0;
+          let at = dur;
+          const cue = Number(cuePoint) / 1000;
+          if (cue > 0) at = Math.min(dur, Math.floor(pos / cue) * cue + cue);
+          this.timers.push(setTimeout(() => { if (token === this.token) run(); }, Math.max(0, at - pos) * 1000));
+        });
+      }
+      fade(target, speed, done) {
+        if (this.fadeTimer) clearInterval(this.fadeTimer);
+        speed = Math.abs(Number(speed)) || 2;
+        this.fadeTimer = setInterval(() => {
+          const v = this.volume < target ? Math.min(target, this.volume + speed) : Math.max(target, this.volume - speed);
+          this.setVolume(v);
+          if (v === target) { clearInterval(this.fadeTimer); this.fadeTimer = null; done(); }
+        }, 1000 / FPS);
+      }
+      fadeIn(speed, vol, startVol, pos, loops) {
+        if (loops === undefined) loops = 2;
+        if (vol === undefined || vol === -1) vol = this.initVolume;
+        if (!this.playing) {
+          this.setVolume(startVol === undefined || startVol === -1 ? 0 : startVol);
+          this.start(pos === undefined ? 0 : pos, loops);
+        } else if (startVol !== undefined && startVol !== -1) {
+          this.setVolume(startVol);
+        }
+        this.fade(Number(vol), speed, () => toGame('fadingIn', [this.num]));
+      }
+      fadeOut(speed, vol, startVol) {
+        if (!this.playing) return;
+        if (vol === undefined) vol = 0;
+        if (startVol !== undefined && startVol !== -1) this.setVolume(startVol);
+        this.fade(Number(vol), speed, () => {
+          if (vol <= 0) { this.stop(); this.setVolume(this.initVolume); }
+          toGame('fadingOut', [this.num]);
+        });
+      }
+      pause() {
+        if (this.playing && this.source) { this.pausePos = this.position(); this.stop(); }
+      }
+      unpause() {
+        if (!this.playing) { this.start(this.pausePos, 1); this.mix(this); this.setVolume(100); }
+      }
+    }
+
+    // Called by the game (SWFBridgeAS3.send).
+    window.chowderMusic = function (method, id, ...args) {
+      if (DEBUG) console.log('music: ' + method + ' ' + [id, ...args].join(', '));
+      if (method === 'register') {
+        player = document.querySelector('ruffle-player');
+        setTimeout(() => player.chowderMusicConnect(), 0);
+        return;
+      }
+      if (method === 'mute') { master.gain.setValueAtTime(0, ctx.currentTime); return; }
+      if (method === 'unmute') { master.gain.setValueAtTime(1, ctx.currentTime); return; }
+      if (method === 'newSound') { if (!sounds[id]) sounds[id] = new Track(id, args[0]); return; }
+      const t = sounds[id];
+      if (!t) return;
+      switch (method) {
+        case 'start': t.start(args[0], args[1]); break;
+        case 'stop': t.stop(); break;
+        case 'setVolume': t.setVolume(args[0]); break;
+        case 'setInitVolume': t.initVolume = Number(args[0]) || 0; t.setVolume(t.initVolume); break;
+        case 'mix': t.mix(sounds[args[0]], args[1]); break;
+        case 'fadeIn': t.fadeIn(...args); break;
+        case 'fadeOut': t.fadeOut(...args); break;
+        case 'pause': t.pause(); break;
+        case 'unpause': t.unpause(); break;
+      }
+    };
+  })();
+</script>
+<script>
+  // Ruffle 2024-06-01 nightly. Newer builds fail this game's preloader
+  // (its config component is never bound, the bar stays at 0%).
+  window.RufflePlayer = window.RufflePlayer || {};
+  window.RufflePlayer.config = {
+    publicPath: "ruffle/",
+    base: "game/",
+    autoplay: "on",
+    unmuteOverlay: "hidden",
+    letterbox: "on",
+    quality: "high",
+    allowScriptAccess: true,
+    warnOnUnsupportedContent: false,
+    contextMenu: "rightClickOnly",
+    splashScreen: false,
+    logLevel: DEBUG ? "info" : "error"
+  };
+</script>
+<script src="ruffle/ruffle.js"></script>
+<script>
+  window.addEventListener("load", () => {
+    const player = window.RufflePlayer.newest().createPlayer();
+    document.getElementById("stage").appendChild(player);
+    player.load("game/game.swf");
+  });
+</script>
+</body>
+</html>
