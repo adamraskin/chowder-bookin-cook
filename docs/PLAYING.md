@@ -147,5 +147,13 @@ async (page) => {
   Time losses: queued "upper slot" pickups that did not happen, a stray
   apple that went into a machine, and Chowder stuck on an impossible
   action. Customers only pay about 80-100, so you need 6-7 dishes.
+- Level 3, tries 3-4: about 540 each. In about 115 s, Chowder served 7
+  customers. Most lost time is idle time while Claude reads a screenshot
+  (10-15 s per cycle, the game keeps running). Clicks queued before a
+  customer sits down do nothing; menus must be clicked after arrival.
+- Throughput rules: while one item is in a sauce machine, start the next
+  item. Give every waiting customer a menu at once. Read all orders in one
+  screenshot, then queue items for all of them (fridge items come out one
+  after another, so plan their pickup times 5 s apart).
 - Idea not yet used (ask the user first): the Ruffle player has pause() /
   play(). Pause while thinking, play only during a batch.
