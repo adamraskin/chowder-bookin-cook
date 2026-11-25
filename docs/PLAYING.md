@@ -74,8 +74,21 @@ at a screenshot, decide, click. Do not write a bot that reads game state.
 - Then click the cash on the counter in front of that seat.
 - When the timer shows CLOSED, no new customers come, but serve the ones
   that are still there. Their money still counts.
-- Customers slide left when a seat frees up. Check which seat has which
-  order before you serve. Clicking the order bubble also works.
+- THE LINE SHIFTS: when a customer is fed and leaves, everyone behind moves
+  one seat left. A click queued for "seat 2" can then go to the wrong
+  customer. Serve by clicking the order bubble (seat 1 bubble (345, 610),
+  seat 2 bubble (490, 610), seat 3 bubble (630, 610)) right after the
+  screenshot, and serve the right-most ready customer first, so the others
+  do not move while Chowder walks.
+- There can be 4 seats (seat 4 at about (752, 760)).
+- Chowder carries ONE item at a time.
+- Level 3+: the counter has TWO slots (lower (207, 462), upper (215, 390)).
+  You can prefire two fridge items. But a queued "pick up from counter"
+  click takes whatever item is there, so a stray item can end up in the
+  wrong machine. Keep the counter clean.
+- If Chowder stops moving while the timer runs, the queue is stuck on an
+  action that is not possible. Click a new, valid action to unstick him.
+- Panini (level 3+) annoys customers. Click her to send her away.
 - Wrong items block the counter. Throw them in the trash.
 - Cupcake (level 2+): click the stand, then a customer. It fills their
   patience bar to full. Use it on a customer whose bar is red.
@@ -85,6 +98,12 @@ at a screenshot, decide, click. Do not write a bot that reads game state.
 
 ## Timing
 
+- The game is deterministic. Predict the state after each action and plan
+  the whole sequence from one screenshot: a served customer always leaves
+  cash, machines always take the same time, a menu always becomes an
+  order bubble about 2.5 s later.
+- Schnitzel makes fridge items ONE AT A TIME. Two orders: the 1st is ready
+  after about 5 s, the 2nd after about 10 s.
 - Fridge prep: about 5 s. Clicking the counter before the item is there
   is lost (Chowder walks there and does nothing). Use 5000 ms.
 - Sauce machine: about 4 s. Wait 4300 ms before the machine pickup click.
@@ -117,5 +136,16 @@ async (page) => {
 ## Results so far
 
 - Level 1: cleared on the 3rd try (471 dollops + bonus, total 661).
-- Level 2: 1st try about 450 (missed 500). Main time losses: clicking the
-  counter or machine too early, and a stray item that blocked the counter.
+- Level 2: cleared on the 3rd try (532 dollops, total game score 1423).
+  Lost tries: clicking the counter or machine too early, a stray item that
+  blocked the counter, and serving a seat after the line shifted.
+- Biggest time cost is the screenshot round trip (10-15 s real time per
+  cycle). Queue the full chain per order in one call, and give menus and
+  prefire the next fridge item during the waits. After CLOSED, keep going:
+  the customers still in the store usually decide pass or fail.
+- Level 3 (goal 600, about 115 s): 2 tries, best about 530 (not cleared).
+  Time losses: queued "upper slot" pickups that did not happen, a stray
+  apple that went into a machine, and Chowder stuck on an impossible
+  action. Customers only pay about 80-100, so you need 6-7 dishes.
+- Idea not yet used (ask the user first): the Ruffle player has pause() /
+  play(). Pause while thinking, play only during a batch.
