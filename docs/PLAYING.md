@@ -155,5 +155,14 @@ async (page) => {
   item. Give every waiting customer a menu at once. Read all orders in one
   screenshot, then queue items for all of them (fridge items come out one
   after another, so plan their pickup times 5 s apart).
+- Level 3, try 5 (with the strategy below): about 540 again. All 8
+  customers of the level were served. The goal needs faster service, not
+  more customers: payment drops as patience drops (about 95 when fast,
+  about 65 when slow). Orders are random; the arrival times look the same.
+- Strategy from time-management game guides (Diner Dash etc.): chain
+  actions, plan the next moves before the current ones finish, serve the
+  least patient customer first, keep every station busy.
+- Use the cupcake early on the customer with the lowest patience. It
+  restores the bar to full and so protects the payment.
 - Idea not yet used (ask the user first): the Ruffle player has pause() /
   play(). Pause while thinking, play only during a batch.
